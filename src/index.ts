@@ -3,6 +3,18 @@ import yargs, { Argv } from 'yargs'
 import * as fs from 'fs'
 import { Message } from 'aws-sdk/clients/sqs'
 
+type PrettySqsMessage = {
+    MessageId: string,
+    SentTimeEpoch: number,
+    SentTime: string,
+    FirstReceiveTime: string,
+    MessageAttributes: object,
+    Body: object|string
+}
+
+/**
+ * Get approximate count of available messages in queue
+ */
 async function getMessageCount(sqs: SQS, queueUrl: string): Promise<number> {
     return new Promise((resolve, reject) => {
         sqs.getQueueAttributes({QueueUrl: queueUrl, AttributeNames: ["All"]}, (err, data) => {
@@ -15,9 +27,13 @@ async function getMessageCount(sqs: SQS, queueUrl: string): Promise<number> {
     })
 }
 
+/**
+ * Receive messages from the queue. Messages will be hidden for subsequent polls for a short period of time. 
+ */
 async function receiveMessages(sqs: SQS, queueUrl: string, messagesPerReceive: number = 10, visibilityTimeout: number = 30): Promise<Message[]> {
     return new Promise((resolve, reject) => {
         sqs.receiveMessage({
+            AttributeNames: ["All"],
             MaxNumberOfMessages: messagesPerReceive,
             MessageAttributeNames: ["All"],
             QueueUrl: queueUrl,
@@ -31,6 +47,34 @@ async function receiveMessages(sqs: SQS, queueUrl: string, messagesPerReceive: n
             }
         })
     })
+}
+
+/**
+ * Render a message object to a more friendly format, epoch seconds as timestamps etc.
+ */
+function prettifyMessage(msg: Message): PrettySqsMessage {
+
+    // parse json body if possible..
+    let processedBody: string|object;
+    try {
+        if (msg.Body) {
+            processedBody = JSON.parse(msg?.Body)
+        } else {
+            processedBody = 'Empty body'
+        }
+    } catch (err) {
+        console.warn("Body not in json format")
+        processedBody = msg.Body ?? 'Empty body'
+    }
+
+    return {
+        MessageId: msg.MessageId ?? 'Unknown',
+        SentTimeEpoch: Number(msg.Attributes?.SentTimestamp),
+        SentTime: new Date(Number(msg.Attributes?.SentTimestamp)).toISOString(),
+        FirstReceiveTime: new Date(Number(msg.Attributes?.ApproximateFirstReceiveTimestamp)).toISOString(),
+        MessageAttributes: msg.MessageAttributes ?? {},
+        Body: processedBody
+    }
 }
 
 function getArgs(): Argv {
@@ -98,12 +142,15 @@ async function run() {
         process.exit()
     }
 
-    let messages: Message[] = []
-    while (messages.length < queuedMessages) {
+    let sqsMessages: Message[] = []
+    while (sqsMessages.length < queuedMessages) {
         process.stdout.write(`Polling new messages... `)
-        messages = messages.concat(await receiveMessages(sqs, sqsQueueUrl, maxMessagesPerReceive, visibilityTimeout))
-        console.log(`${messages.length} of ${queuedMessages} fetched`)
+        sqsMessages = sqsMessages.concat(await receiveMessages(sqs, sqsQueueUrl, maxMessagesPerReceive, visibilityTimeout))
+        console.log(`${sqsMessages.length} of ${queuedMessages} fetched`)
     }
+
+    console.log(`Prettifying and sorting messages`)
+    let messages = sqsMessages.map(m => prettifyMessage(m)).sort((a, b) => b.SentTimeEpoch - a.SentTimeEpoch)
 
     console.log(`Writing results to file`)
     fs.writeFile(outFile, JSON.stringify(messages, null, 2), () => {
@@ -116,7 +163,3 @@ try {
 } catch (err) {
     console.error("Unexpected error occured", err)
 }
-
-// TODO: check how to grep data from the folder
-// TODO: omit search if phrase not given --search "123456"
-

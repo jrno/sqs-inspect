@@ -1,6 +1,7 @@
 import { SQS } from "aws-sdk";
 import { Message } from "aws-sdk/clients/sqs";
-import logger from "./logger";
+import yargs from "yargs";
+import logger from "./log";
 
 interface InformativeSqsMessage {
     messageId: string,
@@ -57,6 +58,60 @@ async function receive(sqs: SQS, queue: string, visibilityTimeout: number, messa
     return Array.prototype.concat(messages, await receive(sqs, queue, visibilityTimeout, messageCount - messages.length))
 }
 
+function getOptions(): {
+    aws_access_key: string;
+    aws_secret_key: string;
+    aws_region: string;
+    aws_session_token?: string | undefined;
+    sqs_queue_url: string;
+    sqs_messages_per_receive: number;
+    sqs_visibility_timeout: number;
+    outfile: string;
+} {
+    const args = yargs(process.argv)
+        .option('aws_access_key', {
+            type: 'string',
+            demand: true
+        })
+        .option('aws_secret_key', {
+            type: 'string',
+            describe: "Aws secret access key",
+            demand: true,
+        })
+        .option('aws_region', {
+            type: 'string',
+            default: 'eu-north-1'
+        })
+        .option('aws_session_token', {
+            type: 'string',
+            demand: false
+        })
+        .option('sqs_queue_url', {
+            type: 'string',
+            describe: 'Sqs queue endpoint url',
+            demand: true
+        })
+        .option('sqs_messages_per_receive', {
+            type: 'number',
+            describe: 'Max number of messages per receive. 1 - 10',
+            default: 10
+        })
+        .option('sqs_visibility_timeout', {
+            type: 'number',
+            describe: 'Time in seconds that received messages are hidden in queue. Adjust to a value that is larger than the process time.',
+            default: 30
+        })
+        .option('outfile', {
+            type: 'string',
+            default: 'sqs-inspect.json'
+        })
+        .help('h')
+
+        // assert max receive 1-10
+        // assert visibility positive
+        return args.argv
+}
+
 async function getMessageData(sqs: SQS, queueUrl: string): Promise<InformativeSqsMessage[]> {
     const messageCountInQueue = await sqs.getQueueAttributes({QueueUrl: queueUrl, AttributeNames: ["All"]})
         .promise()
@@ -68,4 +123,7 @@ async function getMessageData(sqs: SQS, queueUrl: string): Promise<InformativeSq
     return prettify(await receive(sqs, queueUrl, visibilityTimeout, messageCountInQueue))
 }   
 
-export { getMessageData }
+export { 
+    getOptions, 
+    getMessageData 
+}

@@ -1,8 +1,7 @@
 import { SQS } from 'aws-sdk'
-import logger from './logger'
+import logger from './log'
 import * as fs from 'fs'
-import { getOptions } from './options'
-import { getMessageData } from './sqs-fetch'
+import { getMessageData, getOptions } from './sqs-inspect'
 
 async function run() {
     const options = getOptions()

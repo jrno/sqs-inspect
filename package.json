@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "aws-sdk": "^2.799.0",
+    "tslog": "^3.0.1",
     "yargs": "^16.1.1"
   }
 }

@@ -1,16 +1,11 @@
 # sqs-inspect
 
-Simple tool to download and inspect queue data from SQS. Useful for example when inspecting items from dead letter queue. Sqs doesn't provide any good interface to inspect the messages for certain data.
+Small convenience utility over the standard aws cli functionality to fetch all messages from sqs queue (for example dead letter queue) to a more user friendly form for inspection. Messages are polled in batches and aren't released back to the queue immediately, instead visibility timeout is adjusted based on approximate number of messages in the queue.
 
-## How it works
+To run
+```
+yarn run sqs-inspect --aws_access_key "..." --aws_secret_key "..." --sqs_queue_url "https://sqs.eu-north-1.amazonaws.com/123/queue-name" 
+```
 
-Simply receives all messages from given queue and produce the final result to a json file. Messages are fetched with all attributes.
+Will store data as `sqs-inspect.json`
 
-## How to run
-
-TODO: fill
-
-## TODO:
-
-- build/run without ts-node
-- add --search argument for inspection

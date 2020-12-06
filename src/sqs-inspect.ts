@@ -3,7 +3,7 @@ import { Message } from "aws-sdk/clients/sqs";
 import yargs from "yargs";
 import logger from "./log";
 
-interface InformativeSqsMessage {
+interface PrunedSqsMessage {
     messageId: string,
     sentTime: string,
     sentTimeEpoch: number,
@@ -21,10 +21,7 @@ function parseJsonBody(body: string|undefined): object {
     }
 }
 
-/**
- * Render a message object to a more friendly format, epoch seconds as timestamps etc.
- */
-function prettify(messages: Message[]): InformativeSqsMessage[] {
+function prettify(messages: Message[]): PrunedSqsMessage[] {
     if (!messages?.length) {
         return []
     }
@@ -40,6 +37,8 @@ function prettify(messages: Message[]): InformativeSqsMessage[] {
     }).sort((a, b) => b.sentTimeEpoch - a.sentTimeEpoch)
 }
 
+// TODO: run parallel
+// TODO: handle empty receives by adding delay
 async function receive(sqs: SQS, queue: string, visibilityTimeout: number, messageCount: number): Promise<Message[]> {    
     if (messageCount <= 0) {
         return []
@@ -64,8 +63,6 @@ function getOptions(): {
     aws_region: string;
     aws_session_token?: string | undefined;
     sqs_queue_url: string;
-    sqs_messages_per_receive: number;
-    sqs_visibility_timeout: number;
     outfile: string;
 } {
     const args = yargs(process.argv)
@@ -91,33 +88,21 @@ function getOptions(): {
             describe: 'Sqs queue endpoint url',
             demand: true
         })
-        .option('sqs_messages_per_receive', {
-            type: 'number',
-            describe: 'Max number of messages per receive. 1 - 10',
-            default: 10
-        })
-        .option('sqs_visibility_timeout', {
-            type: 'number',
-            describe: 'Time in seconds that received messages are hidden in queue. Adjust to a value that is larger than the process time.',
-            default: 30
-        })
         .option('outfile', {
             type: 'string',
             default: 'sqs-inspect.json'
         })
         .help('h')
 
-        // assert max receive 1-10
-        // assert visibility positive
         return args.argv
 }
 
-async function getMessageData(sqs: SQS, queueUrl: string): Promise<InformativeSqsMessage[]> {
+async function fetchMessages(sqs: SQS, queueUrl: string): Promise<PrunedSqsMessage[]> {
     const messageCountInQueue = await sqs.getQueueAttributes({QueueUrl: queueUrl, AttributeNames: ["All"]})
         .promise()
         .then(msg => Number(msg?.Attributes?.ApproximateNumberOfMessages) ?? 0)
 
-    const visibilityTimeout = Math.max(15, messageCountInQueue / 4)
+    const visibilityTimeout = Math.max(30, messageCountInQueue / 4)
     logger.info(`Queue has approximately ${messageCountInQueue} messages, using visibility timeout of ${visibilityTimeout}s`)
 
     return prettify(await receive(sqs, queueUrl, visibilityTimeout, messageCountInQueue))
@@ -125,5 +110,5 @@ async function getMessageData(sqs: SQS, queueUrl: string): Promise<InformativeSq
 
 export { 
     getOptions, 
-    getMessageData 
+    fetchMessages 
 }

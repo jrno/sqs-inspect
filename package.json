@@ -1,12 +1,11 @@
 {
   "name": "sqs-inspect",
   "version": "1.0.0",
-  "description": "Simple utility to inspect contents of aws sqs queue",
-  "main": "index.js",
+  "description": "Simple utility to fetch sqs content in a searchable form",
   "author": "Jarno Pohjonen",
   "license": "MIT",
   "scripts": {
-    "dev": "ts-node src/index.ts"
+    "sqs-inspect": "ts-node src/index.ts"
   },
   "devDependencies": {
     "@types/aws-sdk": "^2.7.0",

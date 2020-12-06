@@ -1,11 +1,11 @@
 import { SQS } from 'aws-sdk'
 import logger from './log'
 import * as fs from 'fs'
-import { getMessageData, getOptions } from './sqs-inspect'
+import { fetchMessages, getOptions } from './sqs-inspect'
 
-async function run() {
+async function main() {
     const options = getOptions()
-    logger.info(`Sqs inspect started for ${options.sqs_queue_url}`)
+    logger.info(`Queue endpoint ${options.sqs_queue_url}`)
 
     const sqs = new SQS({
         region: options.aws_region as string,
@@ -16,14 +16,14 @@ async function run() {
         }
     })
 
-    const messages = await getMessageData(sqs, options.sqs_queue_url)
+    const messages = await fetchMessages(sqs, options.sqs_queue_url)
     fs.writeFile(options.outfile, JSON.stringify(messages, null, 2), () => {
-        logger.info(`${options.outfile} created...`)
+        logger.info(`Results stored to ${process.cwd()}/${options.outfile}`)
     });
 }
 
 try {
-    run()
+    main()
 } catch (err) {
     console.error("Unexpected error occured", err)
 }
